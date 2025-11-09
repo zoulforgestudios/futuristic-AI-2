@@ -3,6 +3,21 @@ import { Send, Mic, MicOff } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 import { OrbitingAIs } from './OrbitingAIs';
 
+interface AIMode {
+  id: string;
+  name: string;
+  active: boolean;
+  color: string;
+  icon?: string;
+}
+
+interface Message {
+  id: string;
+  type: string;
+  content: string;
+  aiMode?: string;
+}
+
 export function Chat() {
   const { messages, addMessage, aiModes, settings, isListening, setIsListening } = useApp();
   const [input, setInput] = useState('');
@@ -80,10 +95,10 @@ export function Chat() {
       const activeAINames = activeAIs.map(ai => ai.name).join(', ');
 
 
+<\<html>
 
     <div id="chatBox"></div>
 
-     <!-- send input + button -->
      <input id="userInput" type="text" placeholder="Message ZoulForge…">
      <button id="sendBtn">Send</button>
 
@@ -268,4 +283,6 @@ export function Chat() {
       </div>
     </div>
   );
-}
+
+
+</html>
