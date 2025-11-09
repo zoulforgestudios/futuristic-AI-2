@@ -1,152 +1,140 @@
-import { useState, useEffect, useRef } from 'react';
-import { Send, Mic, MicOff } from 'lucide-react';
-import { useApp } from '../contexts/AppContext';
-import { OrbitingAIs } from './OrbitingAIs';
+import { useState } from "react";
 
-export function Chat() 
-  const { messages, addMessage, aiModes, settings, isListening, setIsListening } = useApp();
-  const [input, setInput] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const recognitionRef = useRef<any>(null);
-  const [currentAI, setCurrentAI] = useState("zoul");
+export default function Chat() {
+  const [messages, setMessages] = useState<
+    { role: "user" | "assistant"; content: string }[]
+  >([]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
 
+  // ✅ CHANGE THIS: Insert your real token below (TEMP ONLY)
+  const OPENAI_KEY = "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";
 
-  const activeAIs = aiModes.filter(ai => ai.active);
+  async function askZoulForge(prompt: string) {
+    try {
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${OPENAI_KEY}`
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini", // stable, cheap, fast
+          messages: [
+            { role: "system", content: "You are Zoul, the core AI of ZoulForge." },
+            { role: "user", content: prompt }
+          ]
+        })
+      });
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  // Voice Recognition Setup
-  useEffect(() => {
-    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-      const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
-      recognitionRef.current = new SpeechRecognition();
-      recognitionRef.current.continuous = settings.continuousListening;
-      recognitionRef.current.interimResults = true;
-
-      recognitionRef.current.onresult = (event: any) => {
-        const transcript = Array.from(event.results)
-          .map((result: any) => result[0])
-          .map((result) => result.transcript)
-          .join('');
-
-        // Check for wake word
-        if (settings.wakeWord && transcript.toLowerCase().includes('zoul')) {
-          setIsListening(true);
-          setInput(transcript);
-        } else if (isListening) {
-          setInput(transcript);
-        }
-      };
-
-      recognitionRef.current.onend = () => {
-        if (settings.continuousListening && isListening) {
-          recognitionRef.current?.start();
-        }
-      };
+      const data = await res.json();
+      return data.choices?.[0]?.message?.content ?? "…";
+    } catch (err: any) {
+      return "⚠️ Connection error: " + err.message;
     }
-
-    return () => {
-      recognitionRef.current?.stop();
-    };
-  }, [settings, isListening, setIsListening]);
-
-  const toggleListening = () => {
-    if (isListening) {
-      recognitionRef.current?.stop();
-      setIsListening(false);
-    } else {
-      recognitionRef.current?.start();
-      setIsListening(true);
-    }
-  };
-
-  const handleSend = () => {
-    if (!input.trim()) return;
-
-    // Add user message
-    addMessage({
-      type: 'user',
-      content: input,
-    });
-
-    const userInput = input.toLowerCase();
-    setInput('');
-    setIsTyping(true);
-
-    // Simulate AI response
-    setTimeout(() => {
-      let response = '';
-      const activeAINames = activeAIs.map(ai => ai.name).join(', ');
-
-      // -------------------------
-// REAL ZOUL API CALL
-// -------------------------
-async function askZoulForge(userMessage: string, aiMode: string = "zoul") {
-  try {
-    const response = await fetch("/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        messages: [
-          { role: "user", content: userMessage }
-        ],
-        ai: aiMode
-      })
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      return "⚠️ Zoul Error: " + errorText;
-    }
-
-    const data = await response.json();
-    return data.text || "…";
-  } catch (error: any) {
-    return "⚠️ Network error: " + error.message;
   }
+
+  async function sendMessage() {
+    if (!input.trim() || loading) return;
+
+    const userMsg = { role: "user" as const, content: input };
+    setMessages((prev) => [...prev, userMsg]);
+
+    setInput("");
+    setLoading(true);
+
+    const reply = await askZoulForge(userMsg.content);
+
+    const aiMsg = { role: "assistant" as const, content: reply };
+    setMessages((prev) => [...prev, aiMsg]);
+
+    setLoading(false);
+  }
+
+  return (
+    <div style={styles.container}>
+      <div style={styles.messages}>
+        {messages.map((m, i) => (
+          <div
+            key={i}
+            style={{
+              ...styles.bubble,
+              alignSelf: m.role === "user" ? "flex-end" : "flex-start",
+              background: m.role === "user" ? "#6d5dfc" : "#222",
+              color: "white"
+            }}
+          >
+            {m.content}
+          </div>
+        ))}
+        {loading && (
+          <div style={{ ...styles.bubble, alignSelf: "flex-start", opacity: 0.6 }}>
+            Zoul is typing…
+          </div>
+        )}
+      </div>
+
+      <div style={styles.inputRow}>
+        <input
+          style={styles.input}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+          placeholder="Message ZoulForge…"
+        />
+        <button style={styles.btn} onClick={sendMessage}>
+          Send
+        </button>
+      </div>
+    </div>
+  );
 }
 
-
-// -------------------------
-// SEND MESSAGE HANDLER
-// -------------------------
-const handleSend = async () => {
-  if (!inputValue.trim()) return;
-
-  const newMessage = {
-    role: "user" as const,
-    content: inputValue.trim()
-  };
-
-  // Add user's message
-  setMessages((prev) => [...prev, newMessage]);
-
-  // clear input
-  setInputValue("");
-
-  // ✅ Get Zoul’s response
-  const reply = await askZoulForge(newMessage.content, currentAI);
-
-
-  // Add AI's reply
-  setMessages((prev) => [
-    ...prev,
-    {
-      role: "assistant" as const,
-      content: reply
-    }
-  ]);
+const styles: any = {
+  container: {
+    height: "100vh",
+    width: "100%",
+    display: "flex",
+    flexDirection: "column",
+    background: "#0a0a0a"
+  },
+  messages: {
+    flex: 1,
+    overflowY: "auto",
+    padding: "10px",
+    display: "flex",
+    flexDirection: "column",
+    gap: "8px"
+  },
+  bubble: {
+    maxWidth: "70%",
+    padding: "10px 14px",
+    borderRadius: "12px",
+    fontSize: "15px",
+    lineHeight: "20px",
+    background: "#222"
+  },
+  inputRow: {
+    display: "flex",
+    padding: "10px",
+    gap: "8px",
+    background: "#111"
+  },
+  input: {
+    flex: 1,
+    padding: "10px",
+    borderRadius: "8px",
+    background: "#222",
+    color: "white",
+    border: "none",
+    outline: "none"
+  },
+  btn: {
+    padding: "10px 16px",
+    borderRadius: "8px",
+    background: "#6d5dfc",
+    color: "white",
+    border: "none",
+    cursor: "pointer"
+  }
 };
-
-
-      addMessage({
-        type: 'ai',
-        content: response,
-        aiMode: activeAIs[0]?.name || 'Zoul',
-      });
-      setIsTyping(false);
-    }, 1500);
-  };
