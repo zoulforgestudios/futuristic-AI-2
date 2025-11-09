@@ -79,17 +79,68 @@ export function Chat() {
       let response = '';
       const activeAINames = activeAIs.map(ai => ai.name).join(', ');
 
-      if (userInput.includes('hello') || userInput.includes('hi')) {
-        response = `Hello! I'm ${activeAINames || 'Zoul'}. How can I assist you today?`;
-      } else if (userInput.includes('activate') && userInput.includes('shadow reaper')) {
-        response = '🌑 Shadow Reaper mode activating... All 12 AI modes are now synchronized and working in harmony. Maximum power achieved.';
-      } else if (userInput.includes('activate') && userInput.includes('veil')) {
-        response = '🌑 Veil mode activated. Entering stealth operations. Your privacy is now maximized.';
-      } else if (userInput.includes('help')) {
-        response = `I'm here to help! Active modes: ${activeAINames || 'Zoul (Core)'}. You can ask me anything or activate additional AI modes from the AI Modes screen.`;
+
+
+    <div id="chatBox"></div>
+
+     <!-- send input + button -->
+     <input id="userInput" type="text" placeholder="Message ZoulForge…">
+     <button id="sendBtn">Send</button>
+
+    <script>
+  const chatBox   = document.getElementById("chatBox");
+  const userInput = document.getElementById("userInput");
+  const sendBtn   = document.getElementById("sendBtn");
+
+  // Keep messages in memory (so the model has history)
+  const thread = []; // {role:'user'|'assistant', content:'...'}
+
+  // Pick your current AI mode (you can change from your AI selector UI)
+  let currentAIMode = "zoul";
+
+  function addBubble(role, text){
+    const wrap = document.createElement("div");
+    wrap.className = "msg " + (role === "user" ? "user" : "assistant");
+    wrap.innerHTML = `<div class="avatar"></div><div class="bubble"></div>`;
+    wrap.querySelector(".bubble").textContent = text;
+    chatBox.appendChild(wrap);
+    chatBox.scrollTop = chatBox.scrollHeight;
+  }
+
+  async function sendMessage(){
+    const text = userInput.value.trim();
+    if (!text) return;
+    userInput.value = "";
+    addBubble("user", text);
+    thread.push({ role: "user", content: text });
+
+    // call your serverless endpoint
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: thread, aiMode: currentAIMode })
+      });
+      const data = await res.json();
+      if (data?.reply) {
+        addBubble("assistant", data.reply);
+        thread.push({ role: "assistant", content: data.reply });
       } else {
-        response = `Processing your request with ${activeAINames || 'Zoul'}... ${activeAIs.length > 1 ? 'Multiple AI perspectives are analyzing this.' : 'How can I help you further?'}`;
+        addBubble("assistant", "Hmm, I couldn’t get a reply.");
       }
+    } catch (e) {
+      console.error(e);
+      addBubble("assistant", "Network error. Try again.");
+    }
+  }
+
+  sendBtn?.addEventListener("click", sendMessage);
+  userInput?.addEventListener("keydown", (e)=>{ if (e.key === "Enter") sendMessage(); });
+
+  // Example: change AI mode from your UI (button or selector)
+  window.setAIMode = (id) => { currentAIMode = id || "zoul"; };
+</script>
+
 
       addMessage({
         type: 'ai',
